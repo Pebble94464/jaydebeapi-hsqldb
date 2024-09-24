@@ -313,9 +313,9 @@ DECIMAL = DBAPITypeObject('DECIMAL', 'NUMERIC')
 
 DATE = DBAPITypeObject('DATE')
 
-TIME = DBAPITypeObject('TIME')
+TIME = DBAPITypeObject('TIME', 'TIME_WITH_TIMEZONE')
 
-DATETIME = DBAPITypeObject('TIMESTAMP')
+DATETIME = DBAPITypeObject('TIMESTAMP', 'TIMESTAMP_WITH_TIMEZONE')
 
 ROWID = DBAPITypeObject('ROWID')
 
@@ -620,30 +620,25 @@ class Cursor(object):
 def _unknownSqlTypeConverter(rs, col):
     return rs.getObject(col)
 
-def _to_datetime(rs, col):
-    java_val = rs.getTimestamp(col)
-    if not java_val:
-        return
-    d = datetime.datetime.strptime(str(java_val)[:19], "%Y-%m-%d %H:%M:%S")
-    d = d.replace(microsecond=int(str(java_val.getNanos())[:6]))
-    return str(d)
+def _to_datetime(rs, col): # -> (java.sql.Timestamp | None):
+    '''Returns a java.sql.Timestamp object'''
+    return rs.getTimestamp(col)
 
-def _to_time(rs, col):
-    java_val = rs.getTime(col)
-    if not java_val:
-        return
-    return str(java_val)
+def _to_datetime_with_timezone(rs, col): # -> (java.time.OffsetDateTime | None):
+    '''Returns a java.time.OffsetDateTime object'''
+    return rs.getObject(col)
 
-def _to_date(rs, col):
-    java_val = rs.getDate(col)
-    if not java_val:
-        return
-    # The following code requires Python 3.3+ on dates before year 1900.
-    # d = datetime.datetime.strptime(str(java_val)[:10], "%Y-%m-%d")
-    # return d.strftime("%Y-%m-%d")
-    # Workaround / simpler soltution (see
-    # https://github.com/baztian/jaydebeapi/issues/18):
-    return str(java_val)[:10]
+def _to_time(rs, col): # -> (java.sql.Time | None):
+    '''Returns a java.sql.Time object'''
+    return rs.getTime(col)
+
+def _to_time_with_timezone(rs, col): # -> (java.time.OffsetTime | None):
+    '''Returns a java.time.OffsetTime object'''
+    return rs.getObject(col)
+
+def _to_date(rs, col): # -> (java.sql.date | None):
+    '''Returns a java.sql.date object'''
+    return rs.getDate(col)
 
 def _to_binary(rs, col):
     java_val = rs.getObject(col)
@@ -710,6 +705,7 @@ _converters = None
 _DEFAULT_CONVERTERS = {
     # see
     # http://download.oracle.com/javase/8/docs/api/java/sql/Types.html
+    # and "<projects folder>\hsqldb\hsqldb-2.7.2\hsqldb\src\org\hsqldb\types\Types.java"
     # for possible keys
     'TIMESTAMP': _to_datetime,
     'TIME': _to_time,
@@ -723,5 +719,8 @@ _DEFAULT_CONVERTERS = {
     'INTEGER': _to_int,
     'SMALLINT': _to_int,
     'BOOLEAN': _to_boolean,
-    'BIT': _to_boolean
+    'BIT': _to_boolean,
+    'TIME_WITH_TIMEZONE': _to_time_with_timezone,
+    'TIMESTAMP_WITH_TIMEZONE': _to_datetime_with_timezone
 }
+# TODO: Ensure we have all the necessary types covered.
