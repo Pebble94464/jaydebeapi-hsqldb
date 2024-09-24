@@ -519,8 +519,12 @@ class Cursor(object):
 
     def _set_stmt_parms(self, prep_stmt, parameters):
         for i in range(len(parameters)):
-            # print (i, parameters[i], type(parameters[i]))
-            prep_stmt.setObject(i + 1, parameters[i])
+            if parameters[i] is None:
+                # breakpoint() #- copied from GT's fork. Verify it works for HSQLDB
+                prep_stmt.setNull(i + 1, 0)  # java.sql.Types.Null
+            else:
+                prep_stmt.setObject(i + 1, parameters[i])
+    # TODO: try using other more specific calls than setObject. Might this help solve the DateTest::test_select_direct failure? See JSN_notes.md
 
     def execute(self, operation, parameters=None):
         if self._connection._closed:
