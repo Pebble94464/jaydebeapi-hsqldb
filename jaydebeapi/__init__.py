@@ -157,12 +157,28 @@ def _handle_sql_exception_jpype():
     else:
         db_err = isinstance(exc_info[1], SQLException)
 
+    integrity_error_codes = (
+        # 3500,
+        # 3501,
+        # 10,
+        # 177,
+        # 8,
+        104,	# jpype.java.sql.SQLIntegrityConstraintViolationException
+        # 157
+    )
+
     if db_err:
-        exc_type = DatabaseError
+        error_code = exc_info[1].getErrorCode() * -1
+        assert error_code in integrity_error_codes, 'Error code not previously seen.' #-
+        if error_code in integrity_error_codes:
+            exc_type = IntegrityError
+        else:
+            exc_type = DatabaseError
     else:
         exc_type = InterfaceError
         
     reraise(exc_type, exc_info[1], exc_info[2])
+	# TODO: refactor. Update _handle_sql_exception_jython also.
 
 def _jdbc_connect_jpype(jclassname, url, driver_args, jars, libs):
     import jpype
