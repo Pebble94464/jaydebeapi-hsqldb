@@ -809,4 +809,30 @@ _DEFAULT_CONVERTERS = {
     'TIME_WITH_TIMEZONE': _to_time_with_timezone,
     'TIMESTAMP_WITH_TIMEZONE': _to_datetime_with_timezone
 }
-# TODO: Ensure we have all the necessary types covered.
+class JvmTimezone:
+    _dst_savings = None
+    _raw_offset = None
+
+    @staticmethod
+    def _initialize():
+        JTimeZone = jpype.JClass('java.util.TimeZone', False)
+        # Get the default TimeZone of the Java virtual machine...
+        zone_info = JTimeZone.getDefault() # <java class 'sun.util.calendar.ZoneInfo'>
+        JvmTimezone._raw_offset = zone_info.getRawOffset()
+        JvmTimezone._dst_savings = zone_info.getDSTSavings()
+        del zone_info
+
+    @staticmethod
+    def get_offset():
+        if JvmTimezone._raw_offset == None:
+            JvmTimezone._initialize()
+        assert JvmTimezone._raw_offset != None
+        return JvmTimezone._raw_offset
+
+    @staticmethod
+    def get_dst_savings():
+        if JvmTimezone._dst_savings == None:
+            JvmTimezone._initialize()
+        assert JvmTimezone._dst_savings != None
+        return JvmTimezone._dst_savings
+
