@@ -282,12 +282,38 @@ class DBAPITypeObject(object):
                 raise ValueError("Non unique mapping for type '%s'" % type_name)
             DBAPITypeObject._mappings[type_name] = self
     def __cmp__(self, other):
+        # Python 3 deprecates this method and uses __eq__ and __ne__ instead.
         if other in self.values:
             return 0
         if other < self.values:
             return 1
         else:
             return -1
+    def __hash__(self):
+		# When __eq__ is defined and __hash__ is not we get this error:
+		# *** TypeError: unhashable type: 'DBAPITypeObject'
+        return super().__hash__()
+    def __eq__(self, other):
+        return other in self.values
+    def __ne__(self, other):
+        return other not in self.values
+
+    def __lt__(self, other):
+        raise NotImplementedError('###: DBAPITypeObject.__lt__')
+        return ((self.last, self.first) < (other.last, other.first))
+
+    def __le__(self, other):
+        raise NotImplementedError('###: DBAPITypeObject.__le__')
+        return ((self.last, self.first) <= (other.last, other.first))
+
+    def __gt__(self, other):
+        raise NotImplementedError('###: DBAPITypeObject.__gt__')
+        return ((self.last, self.first) > (other.last, other.first))
+
+    def __ge__(self, other):
+        raise NotImplementedError('###: DBAPITypeObject.__ge__')
+        return ((self.last, self.first) >= (other.last, other.first))
+
     def __repr__(self):
         return 'DBAPITypeObject(%s)' % ", ".join([repr(i) for i in self.values])
     @classmethod
