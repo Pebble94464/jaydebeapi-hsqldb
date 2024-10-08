@@ -669,9 +669,23 @@ def _to_datetime(rs, col) -> datetime.datetime:
 	microseconds = int(value.getNanos() / 1000)
 	return datetime.datetime(year, month, day, hours, minutes, seconds, microseconds)
 
-def _to_datetime_with_timezone(rs, col): # -> (java.time.OffsetDateTime | None):
-    '''Returns a java.time.OffsetDateTime object'''
-    return rs.getObject(col)
+def _to_datetime_with_timezone(rs, col) -> datetime.datetime:
+	"""Convert java.time.OffsetDateTime to datetime.datetime"""
+	value = rs.getObject(col)
+	if value == None:
+		return value
+	assert isinstance(value, jpype.java.time.OffsetDateTime), 'expecting a java.time.OffsetDateTime object'
+	year = value.getYear()
+	month = value.getMonthValue()
+	day = value.getDayOfMonth()
+	hour = value.getHour()
+	minute = value.getMinute()
+	second = value.getSecond()
+	microsecond = int(value.getNano() / 1000)
+	zone_offset = value.getOffset() # <java class 'java.time.ZoneOffset'>
+	offset_seconds = zone_offset.getTotalSeconds()
+	tzinfo1 = datetime.timezone(datetime.timedelta(seconds=offset_seconds))
+	return datetime.datetime(year, month, day, hour, minute, second, microsecond, tzinfo=tzinfo1)
 
 def _to_time(rs, col): # -> (java.sql.Time | None):
     '''Returns a java.sql.Time object'''
