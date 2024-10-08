@@ -27,6 +27,7 @@ import time
 import re
 import sys
 import warnings
+import jpype
 
 PY2 = sys.version_info[0] == 2
 
@@ -148,7 +149,6 @@ def _prepare_jython():
     _handle_sql_exception = _handle_sql_exception_jython
 
 def _handle_sql_exception_jpype():
-    import jpype
     SQLException = jpype.java.sql.SQLException
     exc_info = sys.exc_info()
     if old_jpype:
