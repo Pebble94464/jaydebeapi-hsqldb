@@ -654,9 +654,20 @@ class Cursor(object):
 def _unknownSqlTypeConverter(rs, col):
     return rs.getObject(col)
 
-def _to_datetime(rs, col): # -> (java.sql.Timestamp | None):
-    '''Returns a java.sql.Timestamp object'''
-    return rs.getTimestamp(col)
+def _to_datetime(rs, col) -> datetime.datetime:
+	"""Convert java.sql.Timestamp to datetime.datetime"""
+	value = rs.getTimestamp(col)
+	if value is None:
+		return value
+	assert isinstance(value, jpype.java.sql.Timestamp), 'Expecting a java.sql.Timestamp object'
+	year = value.getYear() + 1900
+	month = value.getMonth() + 1
+	day = value.getDate()
+	hours = value.getHours()
+	minutes = value.getMinutes()
+	seconds = value.getSeconds()
+	microseconds = int(value.getNanos() / 1000)
+	return datetime.datetime(year, month, day, hours, minutes, seconds, microseconds)
 
 def _to_datetime_with_timezone(rs, col): # -> (java.time.OffsetDateTime | None):
     '''Returns a java.time.OffsetDateTime object'''
