@@ -687,9 +687,17 @@ def _to_datetime_with_timezone(rs, col) -> datetime.datetime:
 	tzinfo1 = datetime.timezone(datetime.timedelta(seconds=offset_seconds))
 	return datetime.datetime(year, month, day, hour, minute, second, microsecond, tzinfo=tzinfo1)
 
-def _to_time(rs, col): # -> (java.sql.Time | None):
-    '''Returns a java.sql.Time object'''
-    return rs.getTime(col)
+def _to_time(rs, col) -> datetime.time:
+    """Convert java.sql.Time to datetime.time"""
+    value = rs.getTime(col) # <java class 'java.sql.Time'>
+    if value == None:
+        return
+    assert isinstance(value, jpype.java.sql.Time), 'All work and no play makes Jack a dull boy'
+    hours = value.getHours()
+    minutes = value.getMinutes()
+    seconds = value.getSeconds()
+    microseconds = value.getTime() % 1000 * 1000
+    return datetime.time(hours, minutes, seconds, microseconds)
 
 def _to_time_with_timezone(rs, col): # -> (java.time.OffsetTime | None):
     '''Returns a java.time.OffsetTime object'''
