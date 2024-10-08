@@ -715,9 +715,16 @@ def _to_time_with_timezone(rs, col) -> datetime.time:
 	tzinfo1 = datetime.timezone(datetime.timedelta(seconds=offset_seconds))
 	return datetime.time(hour, minute, second, microsecond, tzinfo=tzinfo1)
 
-def _to_date(rs, col): # -> (java.sql.date | None):
-    '''Returns a java.sql.date object'''
-    return rs.getDate(col)
+def _to_date(rs, col) -> datetime.date:
+    """Convert java.sql.date to datetime.date"""
+    value = rs.getDate(col)
+    if value == None:
+        return
+    assert isinstance(value, jpype.java.sql.Date), 'Expecting java.sql.Date object'
+    year = value.getYear() + 1900
+    month = value.getMonth() + 1
+    day = value.getDate()
+    return datetime.date(year, month, day)
 
 def _to_binary(rs, col):
     java_val = rs.getObject(col)
