@@ -569,12 +569,31 @@ class Cursor(object):
 
     def _set_stmt_parms(self, prep_stmt, parameters):
         for i in range(len(parameters)):
-            if parameters[i] is None:
-                # breakpoint() #- copied from GT's fork. Verify it works for HSQLDB
-                prep_stmt.setNull(i + 1, 0)  # java.sql.Types.Null
+            value = self._to_java_type(parameters[i]) # Try to convert to a Java type.
+
+            if value is not None and not isinstance(value, (str, int,
+                                      jpype.JArray(jpype.JByte),	# <java class 'byte[]'>
+                                      jpype.java.sql.Date,
+                                      jpype.java.sql.Time,
+                                      jpype.java.sql.Timestamp)):
+                print('### previously unseen type: ', type(value))
+                breakpoint() #-
+            # TODO: remove code block once all types have been discovered and tested.
+
+            if value is None:
+                prep_stmt.setNull(i + 1, 0)  # java.sql.Types.NULL
+            elif isinstance(value, jpype.java.sql.Time):
+                prep_stmt.setTime(i + 1, value)
+            elif isinstance(value, jpype.java.sql.Date):
+                prep_stmt.setDate(i + 1, value)
+            elif isinstance(value, jpype.java.sql.Timestamp):
+                prep_stmt.setTimestamp(i + 1, value)
+            elif type(value) is jpype.JArray(jpype.JByte):
+                prep_stmt.setBytes(i + 1, value)
+                # TODO: is it quicker to call isinstance or type()?
             else:
-                prep_stmt.setObject(i + 1, parameters[i])
-    # TODO: try using other more specific calls than setObject. Might this help solve the DateTest::test_select_direct failure? See JSN_notes.md
+                prep_stmt.setObject(i + 1, value)
+    # TODO: Optimise code. Is it faster to call setObject on everything and just let Java sort it out?
 
     def execute(self, operation, parameters=None):
         if self._connection._closed:
