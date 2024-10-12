@@ -551,6 +551,22 @@ class Cursor(object):
         self._meta = None
         self._description = None
 
+    def _to_java_type(self, value): # jsn
+        """ Converts certain Python types to Java type, but not all types."""
+        if type(value) is datetime.time and value.tzinfo != None:
+            value = jpype.java.time.OffsetTime@value
+        elif type(value) is datetime.time:
+            value = jpype.java.sql.Time@value
+        elif type(value) is datetime.datetime and value.tzinfo != None:
+            value = jpype.java.time.OffsetDateTime@value
+        elif type(value) is datetime.datetime:
+            value = jpype.java.sql.Timestamp@value
+        elif type(value) is datetime.date:
+            value = jpype.java.sql.Date@value
+        # if not isinstance(value, (str, jpype.JObject)):
+        #     breakpoint() #- check type Jobject?
+        return value
+
     def _set_stmt_parms(self, prep_stmt, parameters):
         for i in range(len(parameters)):
             if parameters[i] is None:
