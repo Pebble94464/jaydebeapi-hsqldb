@@ -59,7 +59,8 @@ else:
         raise value
 
 if PY2:
-    string_type = basestring
+    assert 'basestring' in __builtins__, 'This version of Python 2.x is missing type basestring.'
+    string_type = __builtins__.get('basestring', str)
 else:
     string_type = str
 
@@ -386,30 +387,90 @@ class NotSupportedError(DatabaseError):
 
 # DB-API 2.0 Type Objects and Constructors
 
-def _java_sql_blob(data):
-    return _java_array_byte(data)
+if False:
+    def Binary(data):
+        """This function constructs an object capable of holding a binary (long) string value."""
+        return _java_array_byte(data)
 
-Binary = _java_sql_blob
+else:
+    #- This is the original code, which seems like unnecessary indirection. Why not just simply define the 'Binary' function?
+    #- Stacktrace records _java_sql_blob instead of Binary, i.e. no advantage or disadvantage here for binary objects,
+    #-  but 
+    def _java_sql_blob(data):
+        return _java_array_byte(data)
 
-def _str_func(func):
-    def to_str(*parms):
-        return str(func(*parms))
-    return to_str
+    Binary = _java_sql_blob
 
-Date = _str_func(datetime.date)
+if True:
+    # "construct individual SQL types"...
 
-Time = _str_func(datetime.time)
+    def Date(*args):
+        """This function constructs an object holding a date value."""
+        breakpoint() #- Are these functions ever called?
+        return str(datetime.date(*args))
+ 
+ # WIP: When does the Time function get called?  Do any github forks customise it?
+    # def Time(*args):
+    def Time(hour, minute, second):
+        """This function constructs an object holding a time value."""
+        
+        milliseconds = \
+            (hour * 60 * 60 +\
+            minute * 60 +\
+            second) * 1000 # +\ # My code previously added fractions of a second when the conversion was implemented in base.py...
+            # int(value.microsecond / 1000) # The conversion from microsecond to millisecond will cause precision loss.
 
-Timestamp = _str_func(datetime.datetime)
+        # When HSQLDB org.hsqldb.jdbc.JDBCPreparedStatement setXXX methods
+        # are called, time values are adjusted for timezone and DST.
+        # This is documented for TIME | TIMESTAMP WITH TIME ZONE,
+        # and also seems to be the case for TIME WITHOUT TIME ZONE.
+
+        # Make an adjustment to counter HSQLDB's adjustment...
+        a = JvmTimezone.get_dst_savings()
+        b = JvmTimezone.get_offset()
+        milliseconds -= (a + b)
+
+        JTime = jpype.JClass('java.sql.Time', False)
+        return JTime(milliseconds)
+ 
+# (Pdb) repr(args)
+# '(datetime.time(9, 25, 23, 234000),)'
+
+
+
+    def Timestamp(*args):
+        """This function constructs an object holding a time stamp value."""
+        breakpoint() #-
+        return str(datetime.datetime(*args))
+else:
+    #- Original code
+    def _str_func(func):
+        def to_str(*parms):
+            return str(func(*parms))
+        return to_str
+
+    Date = _str_func(datetime.date)
+
+    Time = _str_func(datetime.time)
+
+    Timestamp = _str_func(datetime.datetime)
+
 
 def DateFromTicks(ticks):
-    return apply(Date, time.localtime(ticks)[:3])
+    raise NotImplementedError('xxx: DateFromTicks') 		# Is this function ever called?
+    # return apply(Date, time.localtime(ticks)[:3]) 		# No definition found for apply
+    return Date(*time.localtime(ticks)[:3])					# Copied from PEP 249 example
 
 def TimeFromTicks(ticks):
-    return apply(Time, time.localtime(ticks)[3:6])
+    raise NotImplementedError('xxx: TimeFromTicks')			# Is this function ever called?
+    # return apply(Time, time.localtime(ticks)[3:6])		# No definition found for apply
+    return Time(*time.localtime(ticks)[3:6])				# Copied from PEP 249 example
 
 def TimestampFromTicks(ticks):
-    return apply(Timestamp, time.localtime(ticks)[:6])
+    raise NotImplementedError('xxx: TimestampFromTicks') 	# Is this function ever called?
+    # return apply(Timestamp, time.localtime(ticks)[:6]) 	# No definition found for apply
+    return Timestamp(*time.localtime(ticks)[:6])			# Copied from PEP 249 example
+
 
 # DB-API 2.0 Module Interface connect constructor
 def connect(jclassname, url, driver_args=None, jars=None, libs=None):
@@ -509,13 +570,29 @@ class Cursor(object):
     def description(self):
         if self._description:
             return self._description
-        m = self._meta
+        m = self._meta # jsn: <java class 'org.hsqldb.jdbc.JDBCResultSetMetaData'>
         if m:
             count = m.getColumnCount()
             self._description = []
             for col in range(1, count + 1):
                 size = m.getColumnDisplaySize(col)
-                jdbc_type = m.getColumnType(col)
+                jdbc_type = m.getColumnType(col) # jsn: call to java function
+                # WIP: why isn't JDBCResultSetMetaData.getColumnType returning the correct code for an integer?
+                if jdbc_type not in (
+                    -5, 	# 'BIGINT'
+                    1, 		# 'CHARACTER'
+                    4, 		# 'INTEGER'
+                    5, 		# 'SMALLINT'
+                    12,		# 'VARCHAR'
+                    16, 	# 'BOOLEAN'
+                    91, 	# 'DATE'
+					92,		# 'TIME'
+                    93, 	# 'TIMESTAMP'
+                    2004, 	# 'BLOB'
+                    ):
+                    print('### jdbc_type: ', str(jdbc_type))
+                    breakpoint() #- check jdbc_type
+                    # TODO: remove above block of code
                 if jdbc_type == 0:
                     # PEP-0249: SQL NULL values are represented by the
                     # Python None singleton
@@ -571,11 +648,29 @@ class Cursor(object):
         for i in range(len(parameters)):
             value = self._to_java_type(parameters[i]) # Try to convert to a Java type.
 
+# WIP: test case is failing...
+# 	pytest -rP --db hsqldb test/test_suite.py::DateTimeCoercedToDateTimeTest::test_select_direct
+# AssertionError: '2012-10-15 12:57:18' != datetime.datetime(2012, 10, 15, 12, 57, 18)
+# requirements.py:944, datetime_implicit_bound has been changed to return exclusions open. I.e. don't skip this test.
+
+# base.py:600, translate_select_structure VALUES literal_binds=True
+# Setting literal_binds to True appears to have fixed the test failure for
+#    pytest -rP -x --db hsqldb test/test_suite.py::ExistsTest::test_select_exists
+# where an integer was in the Cursor.description as '1' instead of 1.
+
+# Thought VALUES litera_binds=True might fix DateTimeCoercedToDateTimeTest::test_select_direct, but it hasn't.
+# Maybe the test case doesn't use the translate_select_structure function?
+# TODO: find out if 
+
+            # print('### type value: ', type(value))
+            # print('###  str value: ', str(value))
+
             if value is not None and not isinstance(value, (str, int,
                                       jpype.JArray(jpype.JByte),	# <java class 'byte[]'>
                                       jpype.java.sql.Date,
                                       jpype.java.sql.Time,
-                                      jpype.java.sql.Timestamp)):
+                                      jpype.java.sql.Timestamp
+                                      )):
                 print('### previously unseen type: ', type(value))
                 breakpoint() #-
             # TODO: remove code block once all types have been discovered and tested.
@@ -591,6 +686,8 @@ class Cursor(object):
             elif type(value) is jpype.JArray(jpype.JByte):
                 prep_stmt.setBytes(i + 1, value)
                 # TODO: is it quicker to call isinstance or type()?
+            #- elif type(value) is int:
+            #-     prep_stmt.setInt(i + 1, jpype.JInt(value))
             else:
                 prep_stmt.setObject(i + 1, value)
     # TODO: Optimise code. Is it faster to call setObject on everything and just let Java sort it out?
@@ -633,9 +730,9 @@ class Cursor(object):
             return None
         row = []
         for col in range(1, self._meta.getColumnCount() + 1):
-            sqltype = self._meta.getColumnType(col)
-            converter = self._converters.get(sqltype, _unknownSqlTypeConverter)
-            v = converter(self._rs, col)
+            sqltype = self._meta.getColumnType(col) 							# jsn: returns a <java class 'JInt'>, e.g. '12' for a VARCHAR, '92' for TIME
+            converter = self._converters.get(sqltype, _unknownSqlTypeConverter)	# find the appropriate conversin function
+            v = converter(self._rs, col)										# convert the value
             row.append(v)
         return tuple(row)
 
@@ -767,8 +864,9 @@ def _to_binary(rs, col):
         return
     return str(java_val)
 
-def _java_to_py(java_method):
+def _java_to_py(java_method: str):
     def to_py(rs, col):
+        # breakpoint() #- Previously this comment said "Not hit", but it's no longer the case.
         java_val = rs.getObject(col)
         if java_val is None:
             return
@@ -844,6 +942,42 @@ _DEFAULT_CONVERTERS = {
     'TIME_WITH_TIMEZONE': _to_time_with_timezone,
     'TIMESTAMP_WITH_TIMEZONE': _to_datetime_with_timezone
 }
+# TODO: Ensure we have all necessary types covered.
+
+
+
+# def _undefined(value):
+#     print('### undefined')
+# a = (
+#     _undefined,	# 0
+# 	_undefined,	# 1 SQL_CHAR
+# 	_undefined,	# 2 SQL_NUMERIC
+# 	_undefined,	# 3 SQL_DECIMAL
+# 	_undefined,	# 4 SQL_INTEGER
+# 	_undefined,	# 5 SQL_SMALLINT
+# 	_undefined,	# 6 SQL_FLOAT
+# 	_undefined,	# 7 SQL_REAL
+# 	_undefined,	# 8 SQL_DOUBLE
+# 	_undefined,	# 12 SQL_VARCHAR
+# 	_undefined,	# 16 SQL_BOOLEAN
+# 	_undefined,	# 17 SQL_USER_DEFINED_TYPE
+# 	_undefined,	# 19 SQL_ROW
+# 	_undefined,	# 20 SQL_REF
+# 	_undefined,	# 25 SQL_BIGINT             // different in JDBC
+# 	_undefined,	# 30 SQL_BLOB             // different in JDBC
+# 	_undefined,	# 40 SQL_CLOB             // different in JDBC
+# 	_undefined,	# 50 SQL_ARRAY             // different in JDBC - not predefined
+# 	_undefined,	# 55 SQL_MULTISET                      //
+# 	_undefined,	# 60 SQL_BINARY                      // different in JDBC -in SQL post-2003
+# 	_undefined,	# 61 SQL_VARBINARY                     // different in JDBC - in SQL post-2003
+# 	_undefined,	# 91 SQL_DATE
+# 	_undefined,	# 92 SQL_TIME
+# 	_undefined,	# 93 SQL_TIMESTAMP     //
+# 	_undefined,	# 94 SQL_TIME_WITH_TIME_ZONE
+# 	_undefined,	# 95 SQL_TIMESTAMP_WITH_TIME_ZONE     //
+# )
+
+
 class JvmTimezone:
     _dst_savings = None
     _raw_offset = None
