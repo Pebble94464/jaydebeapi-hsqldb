@@ -669,7 +669,8 @@ class Cursor(object):
                                       jpype.JArray(jpype.JByte),	# <java class 'byte[]'>
                                       jpype.java.sql.Date,
                                       jpype.java.sql.Time,
-                                      jpype.java.sql.Timestamp
+                                      jpype.java.sql.Timestamp,
+                                      float, #- detected while experimenting with _yfinance_pandas.py
                                       )):
                 print('### previously unseen type: ', type(value))
                 breakpoint() #-
