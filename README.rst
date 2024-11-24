@@ -10,3 +10,7 @@ In the meantime please refer to the original project for general guidance.
 If you find jaydebeapi-hsqldb useful in other applications besides SQLAlchemy
 please feel welcome to let me know :-)
 
+Known Issues
+============
+- This release still contains debug code and will halt as new datatypes are
+encountered.
