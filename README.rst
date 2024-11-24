@@ -1,7 +1,7 @@
 =================================================================
 jaydebeapi-hsqldb
 =================================================================
-This project is based on `JayDeBeApi <https://github.com/baztian/jaydebeapi/>`
+This project is based on `JayDeBeApi <https://github.com/baztian/jaydebeapi/>`_
 and contains modifications to support an SQLAlchemy dialect for HyperSQL 2.0.
 
 Instructions for installing and configuring will be published in due course.
