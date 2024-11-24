@@ -1,21 +1,3 @@
-# Copyright 2010 Bastian Bowe
-#
-# This file is part of JayDeBeApi.
-# JayDeBeApi is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Lesser General Public License as
-# published by the Free Software Foundation, either version 3 of the
-# License, or (at your option) any later version.
-# 
-# JayDeBeApi is distributed in the hope that it will be useful, but
-# WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# Lesser General Public License for more details.
-# 
-# You should have received a copy of the GNU Lesser General Public
-# License along with JayDeBeApi.  If not, see
-# <http://www.gnu.org/licenses/>.
-# 
-
 import sys
 
 from setuptools import setup
@@ -25,29 +7,25 @@ install_requires = [ 'JPype1 ; python_version > "2.7" and platform_python_implem
                     ]
 
 setup(
-    #basic package data
-    name = 'JayDeBeApi',
-    version = '1.2.3',
-    author = 'Bastian Bowe',
-    author_email = 'bastian.dev@gmail.com',
-    license = 'GNU LGPL',
-    url='https://github.com/baztian/jaydebeapi',
-    description=('Use JDBC database drivers from Python 2/3 or Jython with a DB-API.'),
+    name = 'jaydebeapi-hsqldb',
+    version = '0.0.1',
+    author = 'Jason Pebble',
+    author_email = 'jaydebeapi-hsqldb@pebble.plus.com',
+    license = 'MIT License',
+    url='https://github.com/pebble94464/jaydebeapi-hsqldb',
+    description=('A module for connecting to HyperSQL using JDBC, based on JayDeBeApi'),
     long_description=open('README.rst').read(),
-    keywords = ('db api java jdbc bridge connect sql jpype jython'),
+    keywords = ('hypersql hsqldb jdbc'),
     classifiers = [
         'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',
-        'License :: OSI Approved :: GNU Library or Lesser General Public License (LGPL)',
-        'Programming Language :: Java',
+        'License :: OSI Approved :: MIT License',
         'Programming Language :: Python',
-        'Programming Language :: Python :: 2',
         'Programming Language :: Python :: 3',
         'Topic :: Database',
-        'Topic :: Software Development :: Libraries :: Java Libraries',
         'Topic :: Software Development :: Libraries :: Python Modules',
         ],
 
-    packages=['jaydebeapi'],
+    packages=['jaydebeapi_hsqldb'],
     install_requires=install_requires,
     )

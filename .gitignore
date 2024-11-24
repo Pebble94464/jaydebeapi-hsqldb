@@ -11,7 +11,7 @@ env/
 *~
 mem.*
 *.log
-JayDeBeApi.egg-info
+jaydebeapi_hsqldb.egg-info/
 target/
 .classpath
 .project
