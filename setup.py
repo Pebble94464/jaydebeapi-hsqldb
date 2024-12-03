@@ -14,7 +14,8 @@ setup(
     license = 'MIT License',
     url='https://github.com/pebble94464/jaydebeapi-hsqldb',
     description=('A module for connecting to HyperSQL using JDBC, based on JayDeBeApi'),
-    long_description=open('README.rst').read(),
+	long_description=open('README.rst').read(),
+    long_description_content_type="text/x-rst",
     keywords = ('hypersql hsqldb jdbc'),
     classifiers = [
         'Development Status :: 4 - Beta',
