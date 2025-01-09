@@ -21,6 +21,7 @@ __version_info__ = (1, 2, 3)
 __version__ = ".".join(str(i) for i in __version_info__)
 
 import datetime
+import decimal
 import glob
 import os
 import time
@@ -269,6 +270,7 @@ else:
 apilevel = '2.0'
 threadsafety = 1
 paramstyle = 'qmark'
+# TODO: verify correct threadsafety setting for HSQLDB
 
 class DBAPITypeObject(object):
     _mappings = {}
@@ -289,8 +291,6 @@ class DBAPITypeObject(object):
         else:
             return -1
     def __hash__(self):
-        # When __eq__ is defined and __hash__ is not we get this error:
-        # *** TypeError: unhashable type: 'DBAPITypeObject'
         return super().__hash__()
     def __eq__(self, other):
         return other in self.values
@@ -396,12 +396,23 @@ else:
     def Binary(data):
         """This function constructs an object capable of holding a binary (long) string value."""
         return _java_array_byte(data)
-# TODO: clean up and remove the least optimal code above.
 
-def Date(*args):
-    """This function constructs an object holding a date value."""
-    breakpoint() #- Are these functions ever called?
-    return str(datetime.date(*args))
+    Binary = _java_sql_blob
+
+# "construct individual SQL types"...
+
+def Date(year, month, day):
+    """This function constructs an object holding a date value.
+
+    Params:
+        year: int
+        month: int
+        day: int
+
+    Returns:
+        java.sql.Date object
+    """
+    return jpype.JClass('java.sql.Date')(year - 1900, month - 1, day)
 
 def Time(hour, minute, second):
     """This function constructs an object holding a time value."""
@@ -409,7 +420,13 @@ def Time(hour, minute, second):
     milliseconds = \
         (hour * 60 * 60 +\
         minute * 60 +\
-        second) * 1000
+        second) * 1000 # +\ # My code previously added fractions of a second when the conversion was implemented in base.py...
+        # int(value.microsecond / 1000) # The conversion from microsecond to millisecond will cause precision loss.
+
+    # When HSQLDB org.hsqldb.jdbc.JDBCPreparedStatement setXXX methods
+    # are called, time values are adjusted for timezone and DST.
+    # This is documented for TIME | TIMESTAMP WITH TIME ZONE,
+    # and also seems to be the case for TIME WITHOUT TIME ZONE.
 
     # Make an adjustment to counter HSQLDB's adjustment...
     a = JvmTimezone.get_dst_savings()
@@ -425,13 +442,20 @@ def Timestamp(*args):
     return str(datetime.datetime(*args))
 
 def DateFromTicks(ticks):
-    raise NotImplementedError('DateFromTicks')		# Ever called?
+    raise NotImplementedError('xxx: DateFromTicks')         # Is this function ever called?
+    # return apply(Date, time.localtime(ticks)[:3])         # No definition found for apply
+    return Date(*time.localtime(ticks)[:3])                 # Copied from PEP 249 example
 
 def TimeFromTicks(ticks):
-    raise NotImplementedError('TimeFromTicks')		# Ever called?
+    raise NotImplementedError('xxx: TimeFromTicks')         # Is this function ever called?
+    # return apply(Time, time.localtime(ticks)[3:6])        # No definition found for apply
+    return Time(*time.localtime(ticks)[3:6])                # Copied from PEP 249 example
 
 def TimestampFromTicks(ticks):
-    raise NotImplementedError('TimestampFromTicks')	# Ever called?
+    raise NotImplementedError('xxx: TimestampFromTicks')     # Is this function ever called?
+    # return apply(Timestamp, time.localtime(ticks)[:6])     # No definition found for apply
+    return Timestamp(*time.localtime(ticks)[:6])             # Copied from PEP 249 example
+
 
 # DB-API 2.0 Module Interface connect constructor
 def connect(jclassname, url, driver_args=None, jars=None, libs=None):
@@ -729,7 +753,16 @@ class Cursor(object):
         self.close()
 
 def _unknownSqlTypeConverter(rs, col):
+    if True:
+        print('#### Unknown type encountered ####')
+        md = rs.getMetaData()
+        print('  table name:\t', md.getTableName(col))
+        print('  column name:\t', md.getColumnName(col))
+        print('  type code:\t', md.getColumnType(col))
+        print('  type name:\t', md.getColumnTypeName(col))
+        raise NotSupportedError('Unknown type code encountered')
     return rs.getObject(col)
+# TODO: log an error message for unexpected type, don't block.
 
 def _to_datetime(rs, col) -> datetime.datetime:
     """Convert java.sql.Timestamp to datetime.datetime"""
@@ -764,17 +797,20 @@ def _to_datetime_with_timezone(rs, col) -> datetime.datetime:
     tzinfo1 = datetime.timezone(datetime.timedelta(seconds=offset_seconds))
     return datetime.datetime(year, month, day, hour, minute, second, microsecond, tzinfo=tzinfo1)
 
-def _to_time(rs, col) -> datetime.time:
+def _jtime_to_ptime(t):
     """Convert java.sql.Time to datetime.time"""
-    value = rs.getTime(col) # <java class 'java.sql.Time'>
-    if value == None:
-        return
-    assert isinstance(value, jpype.java.sql.Time), 'All work and no play makes Jack a dull boy'
-    hours = value.getHours()
-    minutes = value.getMinutes()
-    seconds = value.getSeconds()
-    microseconds = value.getTime() % 1000 * 1000
-    return datetime.time(hours, minutes, seconds, microseconds)
+    def func(rs, col) -> datetime.time:
+        """Convert java.sql.Time to datetime.time"""
+        value = rs.getTime(col) # <java class 'java.sql.Time'>
+        if value == None:
+            return
+        assert isinstance(value, jpype.java.sql.Time), 'All work and no play makes Jack a dull boy'
+        hours = value.getHours()
+        minutes = value.getMinutes()
+        seconds = value.getSeconds()
+        microseconds = value.getTime() % 1000 * 1000
+        return datetime.time(hours, minutes, seconds, microseconds)
+    return func
 
 def _to_time_with_timezone(rs, col) -> datetime.time:
     """Convert java.time.OffsetTime to datetime.datetime"""
@@ -792,57 +828,210 @@ def _to_time_with_timezone(rs, col) -> datetime.time:
     tzinfo1 = datetime.timezone(datetime.timedelta(seconds=offset_seconds))
     return datetime.time(hour, minute, second, microsecond, tzinfo=tzinfo1)
 
-def _to_date(rs, col) -> datetime.date:
+def _jdate_to_pdate(t):
     """Convert java.sql.date to datetime.date"""
-    value = rs.getDate(col)
-    if value == None:
-        return
-    assert isinstance(value, jpype.java.sql.Date), 'Expecting java.sql.Date object'
-    year = value.getYear() + 1900
-    month = value.getMonth() + 1
-    day = value.getDate()
-    return datetime.date(year, month, day)
-
-def _to_binary(rs, col):
-    java_val = rs.getObject(col)
-    if java_val is None:
-        return
-    return str(java_val)
-
-def _java_to_py(java_method: str):
-    def to_py(rs, col):
-        java_val = rs.getObject(col)
-        if java_val is None:
+    def func(rs, col) -> datetime.date:
+        """Convert java.sql.date to datetime.date"""
+        value = rs.getDate(col)
+        if value == None:
             return
-        if PY2 and isinstance(java_val, (string_type, int, long, float, bool)):
-            return java_val
-        elif isinstance(java_val, (string_type, int, float, bool)):
-            return java_val
-        return getattr(java_val, java_method)()
-    return to_py
+        assert isinstance(value, jpype.java.sql.Date), 'Expecting java.sql.Date object'
+        year = value.getYear() + 1900
+        month = value.getMonth() + 1
+        day = value.getDate()
+        return datetime.date(year, month, day)
+    return func
 
-def _java_to_py_bigdecimal():
-    def to_py(rs, col):
-        java_val = rs.getObject(col)
-        if java_val is None:
+def _jbinary_to_pbytes(t):
+    ''' Convert Java byte array to Python bytes '''
+    def func(rs, col: int) -> bytes:
+        # obj = rs.getObject(col) # <java class 'byte[]'>
+        # ctn = rs.getMetaData().getColumnTypeName(col) # e.g. 'BINARY'
+        value = rs.getBytes(col)    # <java array 'byte[]'>
+        assert value != None #- The original code had a check for None, but was it's necessary?
+        return bytes(value)
+    return func
+
+def _varbinary_to_bytes(t):
+    ''' Convert VARBINARY to Python bytes '''
+    # convert VARBINARY to bytes. Call rs.getBytes(col)
+    def func(rs, col: int) -> bytes:
+        value = rs.getBytes(col)    # <java array 'byte[]'>
+        return bytes(value)        # <class 'bytes'>
+    return func
+
+def _boolean_to_bool(t):
+    '''Convert Java Boolean to Python bool'''
+    def func(rs, col):
+        #- ctn = rs.getMetaData().getColumnTypeName(col) # 'BIT' or 'BOOLEAN'
+        #- SQLAlchemy's BooleanTest::test_null fails unless we return None when the Java object is None.
+        #- pytest -rP -x --db hsqldb test/test_suite.py::BooleanTest::test_null
+        value = rs.getObject(col) # <java class 'java.lang.Boolean'> or None
+        if value is None:
             return
-        if hasattr(java_val, 'scale'):
-            scale = java_val.scale()
-            if scale == 0:
-                return java_val.longValue()
-            else:
-                return java_val.doubleValue()
-        else:
-            return float(java_val)
-    return to_py
+        return rs.getBoolean(col) # getBoolean returns <class 'bool'>
+    return func
 
-_to_double = _java_to_py('doubleValue')
+def _blob_to_bytes(t):
+    def func(rs, col):
+        blob = rs.getBlob(col) # <java class 'org.hsqldb.jdbc.JDBCBlobClient'>
+        length = blob.length() # <java class 'JLong'>
+        data = blob.getBytes(1, int(length)) # <java array 'byte[]'>
+        return bytes(data)
+    return func
+    # TODO: investigate using blob.getBinaryStream instead of blob.getBytes. Should be more efficient.
 
-_to_int = _java_to_py('intValue')
+def _jchar_to_pstr(t):
+    '''Convert Java char to Python char''' # aka CHARACTER.
+    def func(rs, col) -> str:
+        value = rs.getString(col) # str or None
+        assert(isinstance(value, str) or value is None)
+        return value
+    return func
+    # TODO: This converter executed for CHARACTER eventhough CHARACTER is not in the _DEFAULT_CONVERTERS dictionary. Why?
 
-_to_boolean = _java_to_py('booleanValue')
+def _clob_to_string(t):
+    def func(rs, col) -> str:
+        clob = rs.getClob(col) # <java class 'org.hsqldb.jdbc.JDBCClobClient'>
+        length = clob.length() # <java class 'JLong'>
+        data = clob.getSubString(1, int(length)) # <class 'str'>
+        # TODO: investigate using clob.getcharacterStream instead of clob.getSubString. Should be more efficient.
+        return data
+    return func
 
-_to_decimal = _java_to_py_bigdecimal()
+def _jbigdecimal_to_pdecimal(t):
+    '''Convert Java BigDecimal to Python Decimal'''
+    def func(rs, col):
+        # o = rs.getObject(col) # getObject returns <java class 'java.math.BigDecimal'>
+        # column_type_name = rs.getMetaData().getColumnTypeName(col) # e.g. 'DECIMAL' or 'NUMERIC'
+        bd = rs.getBigDecimal(col) # java.math.BigDecimal
+        plain_string = bd.toPlainString()
+        decimalObject = decimal.Decimal(plain_string) # returns <class 'decimal.Decimal'>
+        return decimalObject
+    return func
+
+def _jdouble_to_pfloat(t: str) -> callable:
+    '''Convert Java double to Python double'''
+    def func(rs, col) -> float:
+        #- o = rs.getObject(col) # getObject returns <java class 'java.lang.Double'>
+        column_type_name = rs.getMetaData().getColumnTypeName(col) # 'DOUBLE'
+        assert column_type_name == 'DOUBLE' # Not expecting to see 'FLOAT' or 'REAL' because they are converted to 'DOUBLE' by HSQLDB.
+        return float(rs.getDouble(col)) # getDouble returns <java class 'JDouble'>, so cast as Python float
+        # JPype.dbapi2 calls rs.getFloat(col) when converting a REAL, but we'll stick with getDouble because that's what HSQLDB uses to store REALs
+    return func
+
+def _jlong_to_pint(t):
+    '''Convert Java long to Python int'''
+    def func(rs, col):
+        #- o = rs.getObject(col) # getObject returns <java class 'java.lang.Long'>
+        java_object = rs.getLong(col) # getLong returns <java class 'JLong'>
+        return int(java_object)
+    return func
+
+def _jint_to_pint(t):
+    '''Convert Java int to Python int'''
+    def func(rs, col):
+        return rs.getInt(col)
+    return func
+# SMALLINT is a signed 16-bit integer in the range -32,768 to 32,767.
+# TINYINT is a signed 8-bit integer in the range is -128 to 127.
+# md.getColumnClassName returns 'java.lang.Integer'
+# rs.getObject(col) returns a java.lang.Integer object
+# JPype converts java.lang.Integer to Python int, although it does this using a call to rs.getShort.
+
+#- pytest -rP -x --db hsqldb test/test_suite.py::BooleanTest::test_whereclause
+
+
+# column_name = md.getColumnName(1)                # 'ABC'
+# column_type = md.getColumnType(1)                # -6
+# is_signed = md.isSigned(1)                    # True
+# column_class_name = md.getColumnClassName(1)     # 'java.lang.Integer'
+# column_type_name = md.getColumnTypeName(1)    # 'TINYINT'
+
+# TODO: What to convert VARBINARY to? Check what JPype returns for VARBINARY.
+#- Converter methods translate Java types to Python types. (Adapters convert Python types to Java types.)
+def _varbinary_to_bytes(t):
+    ''' Convert VARBINARY to Python bytes '''
+    # convert VARBINARY to bytes. Call rs.getBytes(col)
+    def func(rs, col: int) -> bytes:
+        value = rs.getBytes(col)    # <java array 'byte[]'>
+        assert(isinstance(value, jpype.JArray(jpype.JByte)) or value is None)
+        if value is not None:
+            value = bytes(value)
+        return value
+    return func
+# jpype.dbapi2 converts JDBC type VARBINARY to Python type bytes.
+# Python bytearray objects are a mutable counterpart to bytes objects.
+
+def _varchar_to_str(t):
+    ''' Convert VARCHAR to str '''
+    def func(rs, col):
+        value = rs.getString(col) # str or None, not a java.lang.String object
+        assert(isinstance(value, str) or value is None)
+        return value
+    return func
+
+#---- Assignment of converter methods to global variables...
+
+# WIP: _to_array...
+def _to_array(t):
+    def func(rs, col):
+        raise NotImplementedError
+        o = rs.getObject(col) # getObject returns <java class 'org.hsqldb.jdbc.JDBCArray'>
+        column_type_name = rs.getMetaData().getColumnTypeName(col) # 'BLOB'
+        md = rs.getMetaData()
+        jdbc_array = rs.getArray(col) # <java class 'org.hsqldb.jdbc.JDBCArray'>
+        base_type = jdbc_array.getBaseType() # 4
+        base_type_name = jdbc_array.getBaseTypeName() # 'INTEGER'
+        conversion_func = _DEFAULT_CONVERTERS[base_type_name]
+        breakpoint() #-
+        return None
+    return func
+_to_array = _to_array('ARRAY')
+# https://hsqldb.org/doc/2.0/apidocs/org.hsqldb/org/hsqldb/jdbc/JDBCArray.html
+# Note SQLAlchemy's array tests are currently skipped.
+
+"""
+(Pdb) arr2 = arr.getArray()  # <java array 'java.lang.Object[]'>
+(Pdb) repr(arr2)
+"<java array 'java.lang.Object[]'>"
+len(arr2) # 3
+(Pdb) i1 = arr2[0]
+(Pdb) type(i1) # <java class 'java.lang.Integer'>
+
+(Pdb) md2 = rs2.getMetaData() # <java class 'org.hsqldb.jdbc.JDBCResultSetMetaData'>
+(Pdb) md2.getColumnCount() # 2
+
+Pdb) curs = Cursor(None, _DEFAULT_CONVERTERS)
+(Pdb) repr(curs)
+'<jaydebeapi_hsqldb.Cursor object at 0x000002697E0946D0>'
+(Pdb) curs._meta = md2
+curs._rs = rs2
+"""
+
+_bigint_to_int = _jlong_to_pint('BIGINT')
+_binary_to_bytes = _jbinary_to_pbytes('BINARY')
+_bit_to_bool = _boolean_to_bool('BIT')
+_blob_to_pbytes = _blob_to_bytes('BLOB')
+_boolean_to_bool = _boolean_to_bool('BOOLEAN')
+_to_char = _jchar_to_pstr('CHAR')
+_to_clob = _clob_to_string('CLOB')
+_double_to_float = _jdouble_to_pfloat('DOUBLE')
+_float_to_float = _jdouble_to_pfloat('FLOAT')
+_real_to_float = _jdouble_to_pfloat('REAL')
+_integer_to_int = _jint_to_pint('INTEGER')
+_decimal_to_decimal = _jbigdecimal_to_pdecimal('DECIMAL')
+_numeric_to_decimal = _jbigdecimal_to_pdecimal('NUMERIC')
+_smallint_to_int = _jint_to_pint('SMALLINT')
+_to_date = _jdate_to_pdate('DATE')
+_to_time = _jtime_to_ptime('TIME')
+_to_time_with_timezone = _to_time_with_timezone
+_to_datetime = _to_datetime
+_to_datetime_with_timezone = _to_datetime_with_timezone
+_tinyint_to_int = _jint_to_pint('TINYINT')
+_varbinary_to_bytes = _varbinary_to_bytes('VARBINARY')
+_varchar_to_str = _varchar_to_str('VARCHAR')
+# TODO: Some assignments above are to functions while others are to function calls. Make consistent.
 
 def _init_types(types_map):
     global _jdbc_name_to_const
@@ -865,28 +1054,59 @@ def _init_converters(types_map):
 # Mapping from java.sql.Types field to converter method
 _converters = None
 
+# The dictionary below uses the names of java.sql.Types constants as keys.
 _DEFAULT_CONVERTERS = {
-    # see
-    # http://download.oracle.com/javase/8/docs/api/java/sql/Types.html
-    # and "<projects folder>\hsqldb\hsqldb-2.7.2\hsqldb\src\org\hsqldb\types\Types.java"
-    # for possible keys
-    'TIMESTAMP': _to_datetime,
-    'TIME': _to_time,
+    'ARRAY': _to_array,
+    'BIGINT': _bigint_to_int,
+    'BINARY': _binary_to_bytes,
+    'BIT': _bit_to_bool,
+    'BLOB': _blob_to_pbytes,
+    'BOOLEAN': _boolean_to_bool,
+    'CHAR': _to_char, # aka CHARACTER
+    'CLOB': _to_clob,
+    'DATALINK': _unknownSqlTypeConverter,
     'DATE': _to_date,
-    'BINARY': _to_binary,
-    'DECIMAL': _to_decimal,
-    'NUMERIC': _to_decimal,
-    'DOUBLE': _to_double,
-    'FLOAT': _to_double,
-    'TINYINT': _to_int,
-    'INTEGER': _to_int,
-    'SMALLINT': _to_int,
-    'BOOLEAN': _to_boolean,
-    'BIT': _to_boolean,
+    'DECIMAL': _decimal_to_decimal,
+    'DISTINCT': _unknownSqlTypeConverter, # Not a datatype
+
+    # HSQLDB stores FLOAT, DOUBLE, and REAL as a Java Double object, so the
+    # mapping for FLOAT and REAL below can probably be ignored.
+    'DOUBLE': _double_to_float,
+    'FLOAT': _float_to_float,    # Map to double instead?
+    'INTEGER': _integer_to_int,
+    'JAVA_OBJECT': _unknownSqlTypeConverter,
+
+    # HSQLDB uses Unicode strings internally, so N character data types are
+    # possibly redundant.
+    'LONGNVARCHAR': _unknownSqlTypeConverter, # N
+    'LONGVARBINARY': _unknownSqlTypeConverter, # N
+    'LONGVARCHAR': _unknownSqlTypeConverter, # N
+    'NCHAR': _unknownSqlTypeConverter, # N
+    'NCLOB': _unknownSqlTypeConverter, # N
+    'NULL': _unknownSqlTypeConverter, # NULL type columns don't exist.
+    'NUMERIC': _numeric_to_decimal,
+    'NVARCHAR': _unknownSqlTypeConverter, # N
+    'OTHER': _unknownSqlTypeConverter,
+    'REAL': _real_to_float, # Map to double instead?
+    'REF_CURSOR': _unknownSqlTypeConverter,
+    'REF': _unknownSqlTypeConverter,
+    'ROWID': _unknownSqlTypeConverter,
+    'SMALLINT': _smallint_to_int,
+    'SQLXML': _unknownSqlTypeConverter,
+    'STRUCT': _unknownSqlTypeConverter,
+
+    # TIME_WITH_TIMEZONE and TIMESTAMP_WITH_TIMEZONE are the names of constant
+    # integers defined in jpype.java.sql.Types.  The actual names used in SQL
+    # statements include an additional space, e.g. 'TIME WITH TIME ZONE'.
     'TIME_WITH_TIMEZONE': _to_time_with_timezone,
-    'TIMESTAMP_WITH_TIMEZONE': _to_datetime_with_timezone
+    'TIME': _to_time,
+    'TIMESTAMP_WITH_TIMEZONE': _to_datetime_with_timezone,
+    'TIMESTAMP': _to_datetime,
+    'TINYINT': _tinyint_to_int,
+    'VARBINARY': _varbinary_to_bytes,
+    'VARCHAR': _varchar_to_str
 }
-# TODO: Ensure we have all necessary types covered.
+# TODO: remove NULL and DISTINCT from the _DEFAULT_CONVERTERS dictionary.
 
 class JvmTimezone:
     _dst_savings = None
