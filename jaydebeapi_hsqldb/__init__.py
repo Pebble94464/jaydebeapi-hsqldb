@@ -272,6 +272,7 @@ else:
 apilevel = '2.0'
 threadsafety = 1
 paramstyle = 'qmark'
+# TODO: verify correct threadsafety setting for HSQLDB
 
 class DBAPITypeObject(object):
     _mappings = {}
@@ -292,8 +293,6 @@ class DBAPITypeObject(object):
         else:
             return -1
     def __hash__(self):
-		# When __eq__ is defined and __hash__ is not we get this error:
-		# *** TypeError: unhashable type: 'DBAPITypeObject'
         return super().__hash__()
     def __eq__(self, other):
         return other in self.values
@@ -402,68 +401,47 @@ else:
 
     Binary = _java_sql_blob
 
-if True:
-    # "construct individual SQL types"...
+# "construct individual SQL types"...
 
-    def Date(year, month, day):
-        """This function constructs an object holding a date value.
+def Date(year, month, day):
+    """This function constructs an object holding a date value.
 
-        Params:
-          year: int
-          month: int
-          day: int
+    Params:
+        year: int
+        month: int
+        day: int
 
-        Returns:
-          java.sql.Date object
-        """
-        return jpype.JClass('java.sql.Date')(year - 1900, month - 1, day)
+    Returns:
+        java.sql.Date object
+    """
+    return jpype.JClass('java.sql.Date')(year - 1900, month - 1, day)
 
- # WIP: When does the Time function get called?  Do any github forks customise it?
-    # def Time(*args):
-    def Time(hour, minute, second):
-        """This function constructs an object holding a time value."""
-        
-        milliseconds = \
-            (hour * 60 * 60 +\
-            minute * 60 +\
-            second) * 1000 # +\ # My code previously added fractions of a second when the conversion was implemented in base.py...
-            # int(value.microsecond / 1000) # The conversion from microsecond to millisecond will cause precision loss.
+def Time(hour, minute, second):
+    """This function constructs an object holding a time value."""
 
-        # When HSQLDB org.hsqldb.jdbc.JDBCPreparedStatement setXXX methods
-        # are called, time values are adjusted for timezone and DST.
-        # This is documented for TIME | TIMESTAMP WITH TIME ZONE,
-        # and also seems to be the case for TIME WITHOUT TIME ZONE.
+    milliseconds = \
+        (hour * 60 * 60 +\
+        minute * 60 +\
+        second) * 1000 # +\ # My code previously added fractions of a second when the conversion was implemented in base.py...
+        # int(value.microsecond / 1000) # The conversion from microsecond to millisecond will cause precision loss.
 
-        # Make an adjustment to counter HSQLDB's adjustment...
-        a = JvmTimezone.get_dst_savings()
-        b = JvmTimezone.get_offset()
-        milliseconds -= (a + b)
+    # When HSQLDB org.hsqldb.jdbc.JDBCPreparedStatement setXXX methods
+    # are called, time values are adjusted for timezone and DST.
+    # This is documented for TIME | TIMESTAMP WITH TIME ZONE,
+    # and also seems to be the case for TIME WITHOUT TIME ZONE.
 
-        JTime = jpype.JClass('java.sql.Time', False)
-        return JTime(milliseconds)
- 
-# (Pdb) repr(args)
-# '(datetime.time(9, 25, 23, 234000),)'
+    # Make an adjustment to counter HSQLDB's adjustment...
+    a = JvmTimezone.get_dst_savings()
+    b = JvmTimezone.get_offset()
+    milliseconds -= (a + b)
 
+    JTime = jpype.JClass('java.sql.Time', False)
+    return JTime(milliseconds)
 
-
-    def Timestamp(*args):
-        """This function constructs an object holding a time stamp value."""
-        breakpoint() #-
-        return str(datetime.datetime(*args))
-else:
-    #- Original code
-    def _str_func(func):
-        def to_str(*parms):
-            return str(func(*parms))
-        return to_str
-
-    Date = _str_func(datetime.date)
-
-    Time = _str_func(datetime.time)
-
-    Timestamp = _str_func(datetime.datetime)
-
+def Timestamp(*args):
+    """This function constructs an object holding a time stamp value."""
+    breakpoint() #-
+    return str(datetime.datetime(*args))
 
 def DateFromTicks(ticks):
     raise NotImplementedError('xxx: DateFromTicks')         # Is this function ever called?
@@ -595,7 +573,7 @@ class Cursor(object):
                     12,		# 'VARCHAR'
                     16, 	# 'BOOLEAN'
                     91, 	# 'DATE'
-					92,		# 'TIME'
+                    92,		# 'TIME'
                     93, 	# 'TIMESTAMP'
                     2004, 	# 'BLOB'
                     ):
@@ -656,11 +634,6 @@ class Cursor(object):
     def _set_stmt_parms(self, prep_stmt, parameters):
         for i in range(len(parameters)):
             value = self._to_java_type(parameters[i]) # Try to convert to a Java type.
-
-# WIP: test case is failing...
-# 	pytest -rP --db hsqldb test/test_suite.py::DateTimeCoercedToDateTimeTest::test_select_direct
-# AssertionError: '2012-10-15 12:57:18' != datetime.datetime(2012, 10, 15, 12, 57, 18)
-# requirements.py:944, datetime_implicit_bound has been changed to return exclusions open. I.e. don't skip this test.
 
 # base.py:600, translate_select_structure VALUES literal_binds=True
 # Setting literal_binds to True appears to have fixed the test failure for
@@ -741,7 +714,7 @@ class Cursor(object):
         row = []
         for col in range(1, self._meta.getColumnCount() + 1):
             sqltype = self._meta.getColumnType(col) 							# jsn: returns a <java class 'JInt'>, e.g. '12' for a VARCHAR, '92' for TIME
-            converter = self._converters.get(sqltype, _unknownSqlTypeConverter)	# find the appropriate conversin function
+            converter = self._converters.get(sqltype, _unknownSqlTypeConverter)	# find the appropriate conversion function
             v = converter(self._rs, col)										# convert the value
             row.append(v)
         return tuple(row)
@@ -1135,7 +1108,7 @@ _DEFAULT_CONVERTERS = {
     'SMALLINT': _smallint_to_int,
     'SQLXML': _unknownSqlTypeConverter,
     'STRUCT': _unknownSqlTypeConverter,
-    
+
     # TIME_WITH_TIMEZONE and TIMESTAMP_WITH_TIMEZONE are the names of constant
     # integers defined in jpype.java.sql.Types.  The actual names used in SQL
     # statements include an additional space, e.g. 'TIME WITH TIME ZONE'.
