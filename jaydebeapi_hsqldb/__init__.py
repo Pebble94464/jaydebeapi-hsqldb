@@ -405,11 +405,19 @@ else:
 if True:
     # "construct individual SQL types"...
 
-    def Date(*args):
-        """This function constructs an object holding a date value."""
-        breakpoint() #- Are these functions ever called?
-        return str(datetime.date(*args))
- 
+    def Date(year, month, day):
+        """This function constructs an object holding a date value.
+
+        Params:
+          year: int
+          month: int
+          day: int
+
+        Returns:
+          java.sql.Date object
+        """
+        return jpype.JClass('java.sql.Date')(year - 1900, month - 1, day)
+
  # WIP: When does the Time function get called?  Do any github forks customise it?
     # def Time(*args):
     def Time(hour, minute, second):
