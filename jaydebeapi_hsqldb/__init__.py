@@ -415,26 +415,17 @@ def Date(year, month, day):
     return jpype.JClass('java.sql.Date')(year - 1900, month - 1, day)
 
 def Time(hour, minute, second):
-    """This function constructs an object holding a time value."""
+    """This function constructs an object holding a time value.
+	
+    Params:
+        hour: int
+        minute: int
+        second: int
 
-    milliseconds = \
-        (hour * 60 * 60 +\
-        minute * 60 +\
-        second) * 1000 # +\ # My code previously added fractions of a second when the conversion was implemented in base.py...
-        # int(value.microsecond / 1000) # The conversion from microsecond to millisecond will cause precision loss.
-
-    # When HSQLDB org.hsqldb.jdbc.JDBCPreparedStatement setXXX methods
-    # are called, time values are adjusted for timezone and DST.
-    # This is documented for TIME | TIMESTAMP WITH TIME ZONE,
-    # and also seems to be the case for TIME WITHOUT TIME ZONE.
-
-    # Make an adjustment to counter HSQLDB's adjustment...
-    a = JvmTimezone.get_dst_savings()
-    b = JvmTimezone.get_offset()
-    milliseconds -= (a + b)
-
-    JTime = jpype.JClass('java.sql.Time', False)
-    return JTime(milliseconds)
+    Returns:
+        java.sql.Time object
+    """
+    return jpype.JClass('java.sql.Time')(hour, minute, second)
 
 def Timestamp(*args):
     """This function constructs an object holding a time stamp value."""
