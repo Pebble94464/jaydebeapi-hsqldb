@@ -427,8 +427,23 @@ def Time(hour, minute, second):
     """
     return jpype.JClass('java.sql.Time')(hour, minute, second)
 
-def Timestamp(*args):
-    """This function constructs an object holding a time stamp value."""
+def Timestamp(year, month, day, hour, minute, second, nano=0):
+    """This function constructs an object holding a timestamp value.
+
+    Parameters:
+        year: int
+        month: int
+        day: int
+        hour: int
+        minute: int
+        second: int
+        nano: int     # Optional. Not part of the DBAPI 2 specification.
+
+    Returns:
+        java.sql.Timestamp object
+	"""
+    return jpype.JClass('java.sql.Timestamp')(year - 1900, month - 1, day, hour, minute, second, nano)
+# TODO: write tests for Timestamps with nanoseconds
     breakpoint() #-
     return str(datetime.datetime(*args))
 
