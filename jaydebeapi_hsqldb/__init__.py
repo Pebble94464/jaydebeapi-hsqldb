@@ -448,9 +448,13 @@ def Timestamp(year, month, day, hour, minute, second, nano=0):
     return str(datetime.datetime(*args))
 
 def DateFromTicks(ticks):
-    raise NotImplementedError('xxx: DateFromTicks')         # Is this function ever called?
-    # return apply(Date, time.localtime(ticks)[:3])         # No definition found for apply
-    return Date(*time.localtime(ticks)[:3])                 # Copied from PEP 249 example
+    """
+    This function constructs an object holding a date value from the given
+    ticks value (number of seconds since the epoch; see the documentation of
+    the standard Python time module for details).
+    """
+    (year, month, day) = time.localtime(ticks)[:3]
+    return Date(year, month, day)
 
 def TimeFromTicks(ticks):
     raise NotImplementedError('xxx: TimeFromTicks')         # Is this function ever called?
