@@ -441,11 +441,9 @@ def Timestamp(year, month, day, hour, minute, second, nano=0):
 
     Returns:
         java.sql.Timestamp object
-	"""
+    """
     return jpype.JClass('java.sql.Timestamp')(year - 1900, month - 1, day, hour, minute, second, nano)
 # TODO: write tests for Timestamps with nanoseconds
-    breakpoint() #-
-    return str(datetime.datetime(*args))
 
 def DateFromTicks(ticks):
     """
