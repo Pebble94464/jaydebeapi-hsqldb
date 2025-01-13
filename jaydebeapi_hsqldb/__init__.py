@@ -466,9 +466,13 @@ def TimeFromTicks(ticks):
     return Time(hour, minute, second)
 
 def TimestampFromTicks(ticks):
-    raise NotImplementedError('xxx: TimestampFromTicks')     # Is this function ever called?
-    # return apply(Timestamp, time.localtime(ticks)[:6])     # No definition found for apply
-    return Timestamp(*time.localtime(ticks)[:6])             # Copied from PEP 249 example
+    """
+    This function constructs an object holding a timestamp value from the
+    given ticks value (number of seconds since the epoch; see the documentation
+    of the standard Python time module for details).
+    """
+    (year, month, day, hour, minute, second) = time.localtime(ticks)[:6]
+    return Timestamp(year, month, day, hour, minute, second)
 
 
 # DB-API 2.0 Module Interface connect constructor
