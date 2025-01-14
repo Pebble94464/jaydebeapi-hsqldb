@@ -112,7 +112,9 @@ Known Issues
 
 Changelog
 ---------
+
 	0.0.3	Added support for more data types.
+
 	0.0.1	Initial release.
 
 
