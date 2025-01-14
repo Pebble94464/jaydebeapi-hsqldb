@@ -8,7 +8,7 @@ install_requires = [ 'JPype1 ; python_version > "2.7" and platform_python_implem
 
 setup(
     name = 'jaydebeapi-hsqldb',
-    version = '0.0.2',
+    version = '0.0.3',
     author = 'Pebble94464',
     author_email = 'jaydebeapi-hsqldb@pebble.plus.com',
     license = 'MIT License',

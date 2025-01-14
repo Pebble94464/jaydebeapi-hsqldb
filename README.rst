@@ -108,10 +108,11 @@ If you think you've found a bug please feel welcome to submit a report via GitHu
 
 Known Issues
 ============
-- This release still contains debug code and is likely to halt when new datatypes are encountered.
+- This release contains debug code and may halt unexpectedly when new datatypes are encountered.
 
 Changelog
 ---------
-	0.0.1	initial release
+	0.0.3	Added support for more data types.
+	0.0.1	Initial release.
 
 
