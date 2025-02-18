@@ -581,6 +581,7 @@ class Cursor(object):
                 # WIP: why isn't JDBCResultSetMetaData.getColumnType returning the correct code for an integer?
                 if jdbc_type not in (
                     -5, 	# 'BIGINT'
+                    -7, 	# 'BIT'
                     1, 		# 'CHARACTER'
                     4, 		# 'INTEGER'
                     5, 		# 'SMALLINT'
@@ -641,6 +642,8 @@ class Cursor(object):
             value = jpype.java.sql.Timestamp@value
         elif type(value) is datetime.date:
             value = jpype.java.sql.Date@value
+        elif type(value) is bytes:
+            value = jpype.JArray(jpype.JByte, 1)(value) 
         # if not isinstance(value, (str, jpype.JObject)):
         #     breakpoint() #- check type Jobject?
         return value
@@ -876,6 +879,52 @@ def _varbinary_to_bytes(t):
         return bytes(value)        # <class 'bytes'>
     return func
 
+def _jbits_to_pbytes(t):
+    print('type t: ', type(t))
+    def func(rs, col: int) -> bool | bytes | None:
+        """Converts a BIT type.
+        
+        A boolean is returned if the type's length is 1, otherwise an array of
+        bytes is returned.
+
+        It's better to use a type BOOLEAN than type BIT if the length is 1, and
+        HSQLDB might perform an automatic conversion where this happens. t.b.c. 
+
+        When BIT length doesn't fall on a byte boundary, the array of bytes
+        returned by the getBytes method is padded out.  We're not currently 
+        preserving the length information to enable us to strip out the
+        padding, so in the meantime we're raisiing a NotSupportedError.
+        This behavior may change in a future release.
+        
+        Note: HyperSQL Database Manager's behaviour...
+          'SELECT c1 FROM t1' returns True or False, regardless of BIT length.
+          'SELECT hex(c1) FROM t1' reveals the bit pattern.
+        """
+        md = rs.getMetaData();
+        length = md.getPrecision(col)
+        # The correct method for getting the length appears to be getPrecision,
+        # not getColumnDisplaySize. See:
+        # https://hsqldb.org/doc/src/org.hsqldb/org/hsqldb/jdbc/JDBCResultSetMetaData.html
+
+        if length != 1 and length % 8 != 0:
+            # Bit length doesn't fall on a byte boundary
+            raise NotSupportedError("Bit length doesn't fall on a byte boundary.")
+        	# TODO: Can we return a byte array with info about the bit length?
+        if length == 1:
+            value = rs.getObject(col) # java.lang.Boolean | NoneType
+			# Don't call rs.getBoolean() because it only returns true or false.
+            if value is None:
+                return None
+            return bool(value)
+        else:
+            ba = rs.getBytes(col) # <java class 'byte[]' | NoneType
+            if ba is None:
+                return None
+            assert isinstance(ba, jpype.JArray(jpype.JByte))
+            ba_length = ba.length
+            return bytes(ba)
+    return func
+
 def _boolean_to_bool(t):
     '''Convert Java Boolean to Python bool'''
     def func(rs, col):
@@ -1027,7 +1076,7 @@ curs._rs = rs2
 
 _bigint_to_int = _jlong_to_pint('BIGINT')
 _binary_to_bytes = _jbinary_to_pbytes('BINARY')
-_bit_to_bool = _boolean_to_bool('BIT')
+_bit_to_bool = _jbits_to_pbytes('BIT')
 _blob_to_pbytes = _blob_to_bytes('BLOB')
 _boolean_to_bool = _boolean_to_bool('BOOLEAN')
 _to_char = _jchar_to_pstr('CHAR')
