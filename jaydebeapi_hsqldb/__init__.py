@@ -1,4 +1,4 @@
-#-*- coding: utf-8 -*-
+"""jaydebeapi_hsqldb
 
 Based on the `JayDeBeApi <https://github.com/baztian/jaydebeapi/>`_ module,
 this module provides enhanced support for HyperSQL 2.0 (HSQLDB).
