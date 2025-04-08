@@ -22,6 +22,41 @@ this module provides enhanced support for HyperSQL 2.0 (HSQLDB).
 
 __version_info__ = (1, 2, 3)
 __version__ = ".".join(str(i) for i in __version_info__)
+__all__ = [
+	'connect',
+	'apilevel',
+	'threadsafety',
+	'paramstyle',
+	'Warning',
+	'Error',
+	'InterfaceError',
+	'DatabaseError',
+	'DataError',
+	'OperationalError',
+	'IntegrityError',
+	'InternalError',
+	'ProgrammingError',
+	'NotSupportedError',
+	'Connection',
+    'Cursor',
+ 	'Date',
+	'Time',
+	'Timestamp',
+	'DateFromTicks',
+	'TimeFromTicks',
+	'TimestampFromTicks',
+	'Binary',
+	'STRING',
+    'TEXT',
+	'BINARY',
+	'NUMBER',
+	'FLOAT',
+    'DECIMAL',
+    'DATE',
+    'TIME',
+	'DATETIME',
+	'ROWID',
+]
 
 import datetime
 import decimal
