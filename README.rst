@@ -1,16 +1,34 @@
 =================================================================
 jaydebeapi-hsqldb
 =================================================================
-This project is based on `JayDeBeApi <https://github.com/baztian/jaydebeapi/>`_
-and contains modifications to support
-`sqlalchemy-hsqldb <https://github.com/Pebble94464/sqlalchemy-hsqldb.git>`_, 
-an SQLAlchemy dialect for HyperSQL 2.0.
+
+This module provides an interface to allow Python code to communicate with 
+HyperSQL 2.0 databases.
+
+It's a fork of Batzian's `JayDeBeApi <https://github.com/baztian/jaydebeapi/>`_
+project, with added support for HSQLDB's data type and other specializations.
+
+It was created to help support the development of a plug-in for SQLAlchemy,
+`sqlalchemy-hsqldb <https://github.com/Pebble94464/sqlalchemy-hsqldb.git>`_.
+
+Although this module can be used on its own without SQLAlchemy, development 
+work will focus on supporting the SQLAlchemy plug-in first.
+
+
+Prerequisites
+-------------
+
+* Java
+* HyperSQL 2.0 (HSQLDB)
+
+Instructions for installing and configuring Java and HSQLDB are beyond the 
+scope of this guide.  Please visit `java.com <https://www.java.com/>`_ 
+or `hsqldb.org <http://hsqldb.org/>`_ for help.
+
 
 Installation
 ------------
 
-A package for installing jaydebeapi-hsqldb from `pypi.org <https://pypi.org/>`_
-will soon be available 
 To install jaydebeapi-hsqldb from pypi.org, open a command prompt and type:
 
 .. code-block:: sh
@@ -37,6 +55,7 @@ environment variables.
 .. code-block:: sh
 
 	set "JAVA_HOME=C:\Program Files\Java\jre-1.8\bin"
+
 
 Getting Started
 ===============
@@ -82,6 +101,7 @@ The 'jars' parameter needs to include the location of your HSQLDB jar file,
 	except Exception as e:
 		# Connection failed...
 		print(f'\n{repr(e)}\n{str(e)}\n')
+
 
 Troubleshooting
 ---------------
